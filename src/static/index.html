@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Data Insights</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Data Insights</div>
+  </header>
+
+  <main id="thread" class="thread">
+    <div class="welcome">
+      <h1>What would you like to learn from your data?</h1>
+      <p class="hint">Attach a CSV, Excel, JSON, or Parquet file and ask a question in plain English.</p>
+    </div>
+  </main>
+
+  <form id="composer" class="composer" autocomplete="off">
+    <div id="filechip" class="filechip hidden">
+      <span id="filechip-name"></span>
+      <button type="button" id="filechip-x" aria-label="Remove file">×</button>
+    </div>
+    <div class="inputrow">
+      <label class="iconbtn" title="Attach data file">
+        <input type="file" id="file" accept=".csv,.xlsx,.xls,.json,.parquet" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.93 8.83l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </label>
+      <textarea id="q" rows="1" placeholder="Ask a question about your data…" required></textarea>
+      <button id="send" type="submit" class="iconbtn primary" title="Send" disabled>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+    <div class="footer-hint">Two-LLM reflection: Claude plans &amp; executes, GPT reviews twice (plan + output).</div>
+  </form>
+
+  <script src="/app.js"></script>
+</body>
+</html>
