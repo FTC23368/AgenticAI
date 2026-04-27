@@ -81,6 +81,16 @@ function addAssistantMessage() {
   subtitle.textContent = 'Loading data…';
   bubble.appendChild(subtitle);
 
+  // Plan checklist (visible by default once the plan arrives)
+  const planlist = document.createElement('div');
+  planlist.className = 'planlist hidden';
+  bubble.appendChild(planlist);
+
+  // Charts I'll generate (preview list)
+  const chartspreview = document.createElement('div');
+  chartspreview.className = 'chartspreview hidden';
+  bubble.appendChild(chartspreview);
+
   const reasoning = document.createElement('details');
   reasoning.className = 'reasoning';
   const summary = document.createElement('summary');
@@ -106,7 +116,99 @@ function addAssistantMessage() {
   msg.appendChild(bubble);
   thread.appendChild(msg);
   scrollBottom();
-  return { msg, subtitle, reasoning, rbody, charts, narration, cursor, raw: '' };
+  return {
+    msg, subtitle, planlist, chartspreview, reasoning, rbody, charts, narration, cursor,
+    raw: '',
+    plannedCharts: [],   // [{type, title, el}]
+    chartCursor: 0,       // index of next planned chart to mark rendered
+    findingCursor: 0,     // index of next plan step to check off
+  };
+}
+
+function renderPlanChecklist(planlist, plan) {
+  planlist.innerHTML = '';
+  planlist.classList.remove('hidden');
+  const heading = document.createElement('h4');
+  heading.className = 'section-h';
+  heading.textContent = 'Plan';
+  planlist.appendChild(heading);
+  const ol = document.createElement('ol');
+  ol.className = 'checklist';
+  const steps = (plan.steps || []).slice(0, 10);
+  for (const step of steps) {
+    const li = document.createElement('li');
+    li.dataset.stepId = step.id;
+    const box = document.createElement('span');
+    box.className = 'checkbox';
+    box.textContent = '○';
+    const text = document.createElement('span');
+    text.className = 'item-text';
+    text.textContent = step.intent || step.expected_output || `Step ${step.id}`;
+    li.appendChild(box);
+    li.appendChild(text);
+    ol.appendChild(li);
+  }
+  planlist.appendChild(ol);
+}
+
+function renderChartsPreview(chartspreview, plan, ctx) {
+  chartspreview.innerHTML = '';
+  const planned = (plan.steps || [])
+    .map(s => s.chart)
+    .filter(c => c && c.type);
+  ctx.plannedCharts = planned.map(c => ({ ...c, el: null }));
+  if (planned.length === 0) {
+    chartspreview.classList.add('hidden');
+    return;
+  }
+  chartspreview.classList.remove('hidden');
+  const heading = document.createElement('h4');
+  heading.className = 'section-h';
+  heading.textContent = `Charts I'll generate (${planned.length})`;
+  chartspreview.appendChild(heading);
+  const ul = document.createElement('ul');
+  ul.className = 'chartlist';
+  ctx.plannedCharts.forEach((c, i) => {
+    const li = document.createElement('li');
+    const tag = document.createElement('span');
+    tag.className = 'chart-type';
+    tag.textContent = c.type;
+    const title = document.createElement('span');
+    title.className = 'item-text';
+    title.textContent = c.title;
+    const status = document.createElement('span');
+    status.className = 'chart-status pending';
+    status.textContent = '○';
+    li.appendChild(status);
+    li.appendChild(tag);
+    li.appendChild(title);
+    ul.appendChild(li);
+    ctx.plannedCharts[i].el = status;
+  });
+  chartspreview.appendChild(ul);
+}
+
+function tickNextStep(ctx) {
+  const items = ctx.planlist.querySelectorAll('li');
+  if (ctx.findingCursor < items.length) {
+    const li = items[ctx.findingCursor];
+    li.classList.add('done');
+    const box = li.querySelector('.checkbox');
+    if (box) box.textContent = '✓';
+    ctx.findingCursor += 1;
+  }
+}
+
+function tickNextChart(ctx) {
+  if (ctx.chartCursor < ctx.plannedCharts.length) {
+    const planned = ctx.plannedCharts[ctx.chartCursor];
+    if (planned.el) {
+      planned.el.classList.remove('pending');
+      planned.el.classList.add('done');
+      planned.el.textContent = '✓';
+    }
+    ctx.chartCursor += 1;
+  }
 }
 
 function reasoningBlock(title, content) {
@@ -192,15 +294,21 @@ function handleSSE(block, ctx) {
       ctx.rbody.appendChild(reasoningBlock('Dataset profile', payload));
       break;
     case 'plan_draft':
-      ctx.rbody.appendChild(reasoningBlock('Plan — draft (Claude)', payload));
-      ctx.subtitle.textContent = 'Reviewing plan…';
+      ctx.rbody.appendChild(reasoningBlock('Plan — draft', payload));
+      // When reflection is off, plan_draft is the final plan — render checklist + chart preview now.
+      renderPlanChecklist(ctx.planlist, payload);
+      renderChartsPreview(ctx.chartspreview, payload, ctx);
+      ctx.subtitle.textContent = 'Plan ready. Executing…';
       break;
     case 'plan_critique':
-      ctx.rbody.appendChild(reasoningBlock(`Plan critique r${payload.round} (GPT)`, payload));
+      ctx.rbody.appendChild(reasoningBlock(`Plan critique r${payload.round}`, payload));
       ctx.subtitle.textContent = payload.approve_as_is ? 'Plan approved. Executing…' : 'Refining plan…';
       break;
     case 'plan_final':
       ctx.rbody.appendChild(reasoningBlock('Plan — final', payload));
+      // Re-render with the final plan (in case reflection was on and the plan changed)
+      renderPlanChecklist(ctx.planlist, payload);
+      renderChartsPreview(ctx.chartspreview, payload, ctx);
       ctx.subtitle.textContent = 'Executing analysis…';
       break;
     case 'chart_draft':
@@ -208,11 +316,13 @@ function handleSSE(block, ctx) {
       // De-dupe: if a chart with this id already exists, skip
       if (!ctx.charts.querySelector(`[data-chart-id="${payload.chart_id}"]`)) {
         renderChart(ctx.charts, payload);
+        tickNextChart(ctx);
       }
       break;
     case 'finding_draft':
     case 'finding':
       ctx.rbody.appendChild(reasoningBlock(`Finding ${payload.id || ''} (${event})`, payload));
+      tickNextStep(ctx);
       break;
     case 'output_critique':
       ctx.rbody.appendChild(reasoningBlock(`Output critique r${payload.round} (GPT)`, payload));

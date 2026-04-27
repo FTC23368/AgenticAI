@@ -21,22 +21,23 @@ async def run_analysis(state, file_name: str, question: str) -> None:
         profile = profile_dataset(state, df_id)
         await state.emit("profile", profile.model_dump())
 
-        # 2-4. PLAN reflection loop
+        # 2-4. PLAN (with optional reflection loop)
         plan = await asyncio.get_event_loop().run_in_executor(
             None, lambda: call_planner(question, profile, state.tracer)
         )
         await state.emit("plan_draft", plan.model_dump())
 
-        for round_idx in range(settings.MAX_PLAN_ROUNDS):
-            critique = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: call_plan_reviewer(plan, profile, state.tracer)
-            )
-            await state.emit("plan_critique", {**critique.model_dump(), "round": round_idx + 1})
-            if critique.approve_as_is:
-                break
-            plan = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: call_plan_refiner(plan, critique, profile, state.tracer)
-            )
+        if settings.ENABLE_PLAN_REFLECTION:
+            for round_idx in range(settings.MAX_PLAN_ROUNDS):
+                critique = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: call_plan_reviewer(plan, profile, state.tracer)
+                )
+                await state.emit("plan_critique", {**critique.model_dump(), "round": round_idx + 1})
+                if critique.approve_as_is:
+                    break
+                plan = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: call_plan_refiner(plan, critique, profile, state.tracer)
+                )
         await state.emit("plan_final", plan.model_dump())
 
         # 5. EXECUTE — Claude tool use produces draft charts + findings via SSE
@@ -61,16 +62,17 @@ async def run_analysis(state, file_name: str, question: str) -> None:
             narration=draft_narration,
         )
 
-        # 6-7. OUTPUT reflection loop
-        for round_idx in range(settings.MAX_OUTPUT_ROUNDS):
-            critique = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: call_output_reviewer(question, plan, profile, deliverable, state.tracer),
-            )
-            await state.emit("output_critique", {**critique.model_dump(), "round": round_idx + 1})
-            if critique.approve_as_is:
-                break
-            deliverable = await call_output_refiner(deliverable, critique, state)
+        # 6-7. OUTPUT reflection loop (optional)
+        if settings.ENABLE_OUTPUT_REFLECTION:
+            for round_idx in range(settings.MAX_OUTPUT_ROUNDS):
+                critique = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: call_output_reviewer(question, plan, profile, deliverable, state.tracer),
+                )
+                await state.emit("output_critique", {**critique.model_dump(), "round": round_idx + 1})
+                if critique.approve_as_is:
+                    break
+                deliverable = await call_output_refiner(deliverable, critique, state)
 
         # Emit final charts + findings (post-refinement)
         for chart in deliverable.charts:

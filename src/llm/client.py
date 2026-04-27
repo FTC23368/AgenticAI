@@ -33,28 +33,47 @@ def claude_json(
     model: str,
     system: str,
     user: str,
-    schema_hint: str,
+    schema: dict,
     tracer,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
+    tool_name: str = "submit_response",
+    tool_description: str = "Submit the final structured response.",
 ) -> dict:
-    """Ask Claude for a JSON object matching schema_hint. Returns parsed dict."""
-    full_system = (
-        system
-        + "\n\nReturn ONLY a valid JSON object that conforms to this schema. No prose, no markdown fences:\n"
-        + schema_hint
-    )
+    """Ask Claude to return a structured object via a forced tool call.
+
+    `schema` must be a JSON Schema dict (use `MyModel.model_json_schema()`).
+    Returns the tool's input dict directly — no string parsing.
+    """
+    # Strip top-level `title` so Claude doesn't wrap args in a key matching the model name.
+    cleaned = {k: v for k, v in schema.items() if k != "title"}
+    tool = {
+        "name": tool_name,
+        "description": tool_description,
+        "input_schema": cleaned,
+    }
     resp = anthropic_client().messages.create(
         model=model,
         max_tokens=max_tokens,
-        temperature=0,
-        system=full_system,
+        system=system,
+        tools=[tool],
+        tool_choice={"type": "tool", "name": tool_name},
         messages=[{"role": "user", "content": user}],
     )
-    text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     tracer.add_tokens(resp.usage.input_tokens, resp.usage.output_tokens)
     tracer.log("llm.claude_json", model=model, in_t=resp.usage.input_tokens, out_t=resp.usage.output_tokens)
     check_token_budget(tracer.total_tokens)
-    return _parse_json(text)
+    for block in resp.content:
+        if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
+            args = block.input or {}
+            # Defensive unwrap: if model wrapped in a single envelope key, peel it off
+            # when the inner dict matches our schema's required fields.
+            if isinstance(args, dict) and len(args) == 1:
+                only_val = next(iter(args.values()))
+                required = set(cleaned.get("required") or [])
+                if isinstance(only_val, dict) and required and required.issubset(only_val.keys()):
+                    args = only_val
+            return args
+    raise RuntimeError(f"Claude did not call {tool_name} tool. stop_reason={resp.stop_reason}")
 
 
 def claude_tools(
@@ -69,7 +88,6 @@ def claude_tools(
     resp = anthropic_client().messages.create(
         model=model,
         max_tokens=max_tokens,
-        temperature=0,
         system=system,
         tools=tools,
         messages=messages,
@@ -91,7 +109,6 @@ def claude_stream(
     with anthropic_client().messages.stream(
         model=model,
         max_tokens=max_tokens,
-        temperature=0.3,
         system=system,
         messages=[{"role": "user", "content": user}],
     ) as stream:

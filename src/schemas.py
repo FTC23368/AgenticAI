@@ -2,12 +2,18 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class PlannedChart(BaseModel):
+    type: Literal["bar", "line", "pie", "scatter", "box", "histogram", "heatmap"]
+    title: str
+
+
 class PlanStep(BaseModel):
     id: int
     skill: str
     intent: str
     inputs: dict = Field(default_factory=dict)
     expected_output: str
+    chart: Optional[PlannedChart] = None
 
 
 class Plan(BaseModel):

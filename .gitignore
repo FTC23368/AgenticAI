@@ -19,6 +19,11 @@ env/
 # Per-run artifacts
 runs/
 
+# Playwright test artifacts
+.playwright-mcp/
+test-result-*.png
+*.test.png
+
 # OS
 .DS_Store
 Thumbs.db

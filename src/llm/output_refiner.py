@@ -47,7 +47,6 @@ async def call_output_refiner(
         resp = anthropic_client().messages.create(
             model=settings.MODEL_OUTPUT_REFINER,
             max_tokens=4096,
-            temperature=0,
             system=REFINER_SYSTEM,
             tools=tools,
             messages=messages,

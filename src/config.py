@@ -9,13 +9,13 @@ class Settings:
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
-    MODEL_PLANNER: str = os.getenv("MODEL_PLANNER", "claude-opus-4-5-20250929")
+    MODEL_PLANNER: str = os.getenv("MODEL_PLANNER", "claude-opus-4-7")
     MODEL_PLAN_REVIEWER: str = os.getenv("MODEL_PLAN_REVIEWER", "gpt-4o")
-    MODEL_EXECUTOR: str = os.getenv("MODEL_EXECUTOR", "claude-sonnet-4-5-20250929")
-    MODEL_NARRATOR: str = os.getenv("MODEL_NARRATOR", "claude-sonnet-4-5-20250929")
+    MODEL_EXECUTOR: str = os.getenv("MODEL_EXECUTOR", "claude-sonnet-4-6")
+    MODEL_NARRATOR: str = os.getenv("MODEL_NARRATOR", "claude-sonnet-4-6")
     MODEL_OUTPUT_REVIEWER: str = os.getenv("MODEL_OUTPUT_REVIEWER", "gpt-4o")
     MODEL_OUTPUT_REFINER: str = os.getenv(
-        "MODEL_OUTPUT_REFINER", "claude-sonnet-4-5-20250929"
+        "MODEL_OUTPUT_REFINER", "claude-sonnet-4-6"
     )
 
     MAX_ROWS: int = int(os.getenv("MAX_ROWS", "1000000"))
@@ -24,6 +24,9 @@ class Settings:
     MAX_PLAN_ROUNDS: int = int(os.getenv("MAX_PLAN_ROUNDS", "2"))
     MAX_OUTPUT_ROUNDS: int = int(os.getenv("MAX_OUTPUT_ROUNDS", "2"))
     MAX_EXECUTOR_STEPS: int = int(os.getenv("MAX_EXECUTOR_STEPS", "20"))
+
+    ENABLE_PLAN_REFLECTION: bool = os.getenv("ENABLE_PLAN_REFLECTION", "false").lower() == "true"
+    ENABLE_OUTPUT_REFLECTION: bool = os.getenv("ENABLE_OUTPUT_REFLECTION", "false").lower() == "true"
 
     RUNS_DIR: Path = Path(os.getenv("RUNS_DIR", "runs"))
 

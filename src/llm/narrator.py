@@ -27,7 +27,6 @@ def call_narrator_draft(question: str, deliverable: Deliverable, tracer) -> str:
     resp = anthropic_client().messages.create(
         model=settings.MODEL_NARRATOR,
         max_tokens=2048,
-        temperature=0.3,
         system=NARRATOR_SYSTEM,
         messages=[{"role": "user", "content": user}],
     )
